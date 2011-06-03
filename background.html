@@ -1,0 +1,155 @@
+<script>
+
+var agent = 'historious Safari Extension 0.1';
+
+safari.application.addEventListener("command", performCommand, false);
+safari.application.addEventListener("validate", validateCommand, false);
+
+
+
+function validateCommand(event)
+{
+    if (event.command === "do_historify") {
+        // Disable the button if there is no URL loaded in the tab.
+        event.target.disabled = !event.target.browserWindow.activeTab.url;
+    }
+}
+
+
+function performCommand(event) {
+    if (event.command === "do_historify") {
+        var currentURL = event.target.browserWindow.activeTab.url;
+        if (currentURL) {
+            getkey(function (key) {
+                getHTML(function (content) {
+                    save(key, safari.application.activeBrowserWindow.activeTab.url, safari.application.activeBrowserWindow.activeTab.title, content);
+                });
+            });
+        };
+    };
+};
+
+
+function getkey(callback) {
+    if (safari.extension.settings.apikey != "*unset*")
+        return callback(safari.extension.settings.apikey);
+
+    xhr(protocol() + '://historio.us/api/getkey/', {'agent': agent},
+        function (response) {
+            response = JSON.parse(response);
+
+            if (typeof response === 'number') { //error
+                if (response === 2) {
+                    alert('We cannot historify this page, as you need to sign in to historious to complete the installation. Please retry after signing in!');
+                    var tab = safari.application.activeBrowserWindow.openTab(true);
+                    safari.application.activeBrowserWindow.insertTab(tab, 0);
+	                tab.url = 'http://historio.us/login/';
+                } else {
+                    alert('Code ' + response);
+                }
+
+            } else {
+                safari.extension.settings.apikey = response;
+                return callback(response);
+            }
+        },
+        alert);
+}
+
+
+function getHTML(callback) {
+	if (safari.extension.settings.bypass == true) {
+		chrome.tabs.sendRequest(safari.application.activeBrowserWindow.activeTab, {}, function (response) {
+			callback(response.html);
+		});
+	}
+    else {
+		callback("");
+    }
+}
+
+
+function save(key, url, title, content) {
+    var destination = protocol() + '://historio.us/api/add/?key=' + key;
+    var contentdict = {'agent': agent, 'url': url};
+    if (safari.extension.settings.bypass == true) {
+        contentdict["source"] = content;
+    }
+
+    if (safari.extension.settings.prompt_tags == true) {
+        var tags = prompt("Please enter some tags for this webpage:", "");
+        if (tags) contentdict["tags"] = tags;
+    }
+
+    xhr(destination, contentdict, 
+        function (response) {
+            var code = JSON.parse(response);
+            switch (code) {
+            case 0:
+                // success
+                break;
+            case 1:
+                // already saved
+                safari.application.activeBrowserWindow.status = "This page has already been historified.";
+                break;
+            case 2:
+                alert('Your key is invalid. Please sign in to historious again so we can retrieve it.');
+                safari.extension.settings.apikey = "*unset*";
+                var tab = safari.application.activeBrowserWindow.openTab(true);
+                safari.application.activeBrowserWindow.insertTab(tab, 0);
+                tab.url = 'http://historio.us/login/';
+                break;
+            case 3:
+                alert('Invalid request or site url');
+                break;
+            case 4:
+                alert('You have reached the limit of historified sites. Please upgrade your account!');
+                break;
+            default:
+                alert('Code ' + code);
+                break;
+            }
+        },
+        alert);
+}
+
+
+function protocol() {
+    if (safari.extension.settings.secure == 1)
+        return "https";
+    else
+        return "http";
+}
+
+
+function xhr(url, data, onsuccess, onerror) {
+    var xhrequest = new XMLHttpRequest();
+
+    xhrequest.onreadystatechange = function () {
+        if (xhrequest.readyState != 4)
+            return;
+
+        if (xhrequest.responseText)
+            onsuccess(xhrequest.responseText);
+    }
+
+    xhrequest.onerror = function (error_param) {
+        onerror(error_param);
+    }
+
+    xhrequest.open('POST', url, true);
+    xhrequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded"); 
+    xhrequest.send(makeFormData(data));
+}
+
+
+function makeFormData(data) {
+    var formdata = "";
+    for (var key in data) {
+        formdata = formdata + "&" + key + "=" + encodeURIComponent(data[key]);
+    }
+    return formdata.slice(1);
+}
+
+
+</script>
