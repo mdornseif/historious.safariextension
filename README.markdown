@@ -1,3 +1,5 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+
 ## Safari 5 historio.us Extension
 
 This extension makes saving (historifying) sites with the online bookmarking service http://historio.us easier. Just click the button and your site will be saved in historious (it will *only* save sites you select, nothing else).
